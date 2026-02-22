@@ -103,6 +103,29 @@ ModelGrid& ModelGrid::operator=(const ModelGrid& copy)
 	return *this;
 }
 
+ModelGrid::ModelGrid(ModelGrid&& moved) noexcept
+{
+	*this = std::move(moved);
+}
+
+ModelGrid& ModelGrid::operator=(ModelGrid&& moved) noexcept
+{
+	if (this != &moved)
+	{
+		CellDimensions = moved.CellDimensions;
+		CellIndexBounds = moved.CellIndexBounds;
+		DefaultMaterials = moved.DefaultMaterials;
+		IndexGrid = std::move(moved.IndexGrid);
+		AllocatedBlocks = std::move(moved.AllocatedBlocks);
+		MinCoordCorner = moved.MinCoordCorner;
+		AllocatedChunkBounds = moved.AllocatedChunkBounds;
+		ModifiedKeyBounds = moved.ModifiedKeyBounds;
+		EmptyCell = moved.EmptyCell;
+		// BlockDataLock is left as-is (not moved)
+	}
+	return *this;
+}
+
 ModelGrid::ModelGrid(const ModelGrid& Other)
 {
 	*this = Other;

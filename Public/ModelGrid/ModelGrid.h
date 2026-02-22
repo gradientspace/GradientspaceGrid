@@ -199,8 +199,8 @@ private:
 public:
 
 	ModelGrid();
-	ModelGrid(ModelGrid&& moved) = default;
-	ModelGrid& operator=(ModelGrid&& moved) = default;
+	ModelGrid(ModelGrid&& moved) noexcept;
+	ModelGrid& operator=(ModelGrid&& moved) noexcept;
 	ModelGrid(const ModelGrid& Other);
 	ModelGrid& operator=(const ModelGrid& copy);
 	~ModelGrid();
