@@ -107,7 +107,7 @@ struct GridMaterial
 		return (bConvertFromSRGBToLinear) ? GS::SRGBToLinear(Color4) : (Vector4f)Color4;
 	}
 
-	static constexpr GridMaterial White() { return GridMaterial(Color4b::White()); }
+	static GridMaterial White() { return GridMaterial(Color4b::White()); }
 
 	constexpr bool operator==(const GridMaterial& Other) const {
 		return SingleIndex.Value == Other.SingleIndex.Value;

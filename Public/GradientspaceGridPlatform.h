@@ -10,10 +10,18 @@
 
 #else   // ! GSGRID_EMBEDDED_UE_BUILD
 
-#ifdef GRADIENTSPACEGRID_EXPORTS
-#define GRADIENTSPACEGRID_API __declspec(dllexport)
+#if defined(__linux__) || defined(__APPLE__)
+	#ifdef GRADIENTSPACEGRID_EXPORTS
+	#define GRADIENTSPACEGRID_API __attribute__((visibility("default")))
+	#else
+	#define GRADIENTSPACEGRID_API
+	#endif
 #else
-#define GRADIENTSPACEGRID_API __declspec(dllimport)
+	#ifdef GRADIENTSPACEGRID_EXPORTS
+	#define GRADIENTSPACEGRID_API __declspec(dllexport)
+	#else
+	#define GRADIENTSPACEGRID_API __declspec(dllimport)
+	#endif
 #endif
 
 

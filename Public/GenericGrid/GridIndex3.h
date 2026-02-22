@@ -4,7 +4,11 @@
 #include "GradientspaceGridPlatform.h"
 #include "Math/GSIntVector3.h"
 
-#include <xhash>  // works for std::hash defined at bottom? or is <unordered_set> required?
+#ifdef _MSC_VER
+#include <xhash>
+#else
+#include <functional>
+#endif
 
 
 namespace GS

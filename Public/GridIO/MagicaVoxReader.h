@@ -18,6 +18,7 @@ public:
 		bool bIgnoreColors = false;
 		bool bCombineAllObjects = true;
 		bool bIgnoreTransforms = false;
+		VOXReadOptions() : bIgnoreColors(false), bCombineAllObjects(true), bIgnoreTransforms(false) {}
 	};
 
 	struct VOXTransform

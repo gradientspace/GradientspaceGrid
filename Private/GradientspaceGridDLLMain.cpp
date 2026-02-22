@@ -1,7 +1,7 @@
 // Copyright Gradientspace Corp. All Rights Reserved.
 
-// only need this code if we are building a standalone DLL
-#ifdef GRADIENTSPACEGRID_EXPORTS
+// only need this code if we are building a standalone DLL on Windows
+#if defined(GRADIENTSPACEGRID_EXPORTS) && defined(_WIN32)
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
