@@ -265,6 +265,7 @@ static Vector3d StandardRSTDimensionToScale(const ModelGridCellData_StandardRST&
 		//return Vector3d(
 		//	Quarters[Cell.Params.DimensionX], Quarters[Cell.Params.DimensionY], Quarters[Cell.Params.DimensionZ]);
 		constexpr double mul = 1.0 / (double)(ModelGridCellData_StandardRST::MaxDimension + 1);
+		// currently the spacing between each step is 1/16 = 0.0625
 		return Vector3d(
 			(double)(Cell.Params.DimensionX+1) * mul, 
 			(double)(Cell.Params.DimensionY+1) * mul, 

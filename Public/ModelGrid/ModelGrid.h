@@ -237,6 +237,7 @@ public:
 	bool IsValidCell(CellKey Key) const;
 	bool IsCellSolid(CellKey Key) const;
 	bool IsCellEmpty(CellKey Key) const;
+	//! returns bounds of cell in local space of this ModelGrid (ie relative to origin)
 	AxisBox3d GetCellLocalBounds(CellKey Key) const;
 
 	//Frame3d GetCellFrame(CellKey Key, bool bLocal) const;
