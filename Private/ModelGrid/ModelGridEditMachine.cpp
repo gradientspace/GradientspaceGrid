@@ -1,6 +1,7 @@
 // Copyright Gradientspace Corp. All Rights Reserved.
 
 #include "ModelGrid/ModelGridEditMachine.h"
+#include "ModelGrid/ModelGridCell_Extended.h"
 #include "GenericGrid/BoxIndexing.h"
 #include "Grid/GSGridUtil.h"
 #include "Color/GSColorConversion.h"
@@ -38,9 +39,12 @@ static CubeOrientation ComputeBestBlockOrientationFromViewV2(EModelGridCellType 
 				BlockAlignDir = Vector3d(0, 0, 1); break;
 			case EModelGridCellType::Ramp_Parametric:	
 				BlockAlignDir = Vector3d(0, 1, 1); break;
-			case EModelGridCellType::Corner_Parametric:	
+			case EModelGridCellType::Corner_Parametric:
 			case EModelGridCellType::CutCorner_Parametric:
+			case EModelGridCellType::VariableCutCorner_Parametric:
 				BlockAlignDir = Vector3d(1, 1, 1); break;
+			case EModelGridCellType::VariableCutEdge_Parametric:
+				BlockAlignDir = Vector3d(0, 1, 1); break;
 			case EModelGridCellType::Peak_Parametric:	
 				BlockAlignDir = Vector3d(0, 1, 1); break;		// is this right?
 		}
@@ -719,6 +723,8 @@ void ModelGridEditMachine::InitializeLastCellTypeCache()
 	LastCellTypeCache[(int)EModelGridCellType::Pyramid_Parametric] = MakeDefaultCell<MGCell_Pyramid>();
 	LastCellTypeCache[(int)EModelGridCellType::Peak_Parametric] = MakeDefaultCell<MGCell_Peak>();
 	LastCellTypeCache[(int)EModelGridCellType::Cylinder_Parametric] = MakeDefaultCell<MGCell_Cylinder>();
+	LastCellTypeCache[(int)EModelGridCellType::VariableCutCorner_Parametric] = MakeDefaultCell<MGCell_VariableCutCorner>();
+	LastCellTypeCache[(int)EModelGridCellType::VariableCutEdge_Parametric] = MakeDefaultCell<MGCell_VariableCutEdge>();
 
 }
 

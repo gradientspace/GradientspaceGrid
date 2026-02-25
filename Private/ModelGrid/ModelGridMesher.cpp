@@ -451,6 +451,272 @@ void ModelGridMesher::AppendCutCorner(const AxisBox3d& LocalBounds, const CellMa
 }
 
 
+// Helper: fan-triangulate a polygon into IMeshBuilder, removing consecutive duplicate vertex indices.
+// VertexIDs are already-appended vertex indices in the mesh builder.
+// FaceNormal is the pre-computed face normal for all triangles.
+// Returns the number of triangles appended.
+static int FanTriangulateToMeshBuilder(
+	IMeshBuilder& Builder, int GroupID,
+	const int* VertexIDs, int VertexCount,
+	const Vector3f& FaceNormal,
+	const Vector4f& FaceColor, bool bUseFaceColors,
+	int CellMatIndex,
+	bool bReverseOrientation)
+{
+	// Remove consecutive duplicate vertex indices
+	int Filtered[16];
+	int FilteredCount = 0;
+	for (int i = 0; i < VertexCount; ++i) {
+		if (FilteredCount == 0 || VertexIDs[i] != Filtered[FilteredCount - 1])
+			Filtered[FilteredCount++] = VertexIDs[i];
+	}
+	if (FilteredCount > 1 && Filtered[0] == Filtered[FilteredCount - 1])
+		FilteredCount--;
+
+	if (FilteredCount < 3) return 0;
+
+	int d1 = 0, d2 = 1;
+	if (bReverseOrientation) { d1 = 1; d2 = 0; }
+
+	int TriCount = 0;
+	for (int j = 1; j + 1 < FilteredCount; ++j)
+	{
+		Index3i NewTri(Filtered[0], Filtered[j + d1], Filtered[j + d2]);
+		int NewTriID = Builder.AppendTriangle(NewTri, GroupID);
+		if (NewTriID >= 0)
+		{
+			int NID = Builder.AppendNormal(FaceNormal);
+			Builder.SetTriangleNormals(NewTriID, Index3i(NID, NID, NID));
+			Builder.SetMaterialID(NewTriID, CellMatIndex);
+
+			if (bUseFaceColors) {
+				int CID = Builder.AppendColor(FaceColor, true);
+				Builder.SetTriangleColors(NewTriID, Index3i(CID, CID, CID));
+			}
+			TriCount++;
+		}
+	}
+	return TriCount;
+}
+
+
+void ModelGridMesher::AppendVariableCutCorner(
+	const AxisBox3d& LocalBounds, const CellMaterials& Materials,
+	IMeshBuilder& AppendToMesh, TransformListd& Transforms,
+	uint8_t ParamA, uint8_t ParamB, uint8_t ParamC)
+{
+	constexpr int NumSteps = 16;
+	// Vertex positions must be in [0, CellDimensions] space to match the transform system
+	Vector3d CellDims = LocalBounds.Max - LocalBounds.Min;
+	double SX = CellDims.X, SY = CellDims.Y, SZ = CellDims.Z;
+
+	double dx = ((double)ParamA + 1.0) * SX / NumSteps;
+	double dy = ((double)ParamB + 1.0) * SY / NumSteps;
+	double dz = ((double)ParamC + 1.0) * SZ / NumSteps;
+
+	bool bReverseOrientation = Transforms.bScaleInvertsOrientation;
+	bool bHaveCellMatIndex = (Materials.CellType == EGridCellMaterialType::SolidRGBIndex);
+	int CellMatIndex = (bHaveCellMatIndex) ? Materials.CellMaterial.GetIndex8() : 0;
+	bool bUseFaceColors = (Materials.CellType == EGridCellMaterialType::FaceColors);
+	Vector4f CellColor = (!bUseFaceColors) ? Materials.CellMaterial.AsVector4f(true, !bHaveCellMatIndex) : Vector4f::One();
+
+	// Cube corner positions in cell-dimensions space
+	Vector3d Positions[10];
+	Positions[3] = Vector3d(0, 0, 0);     // origin
+	Positions[4] = Vector3d(SX, 0, 0);    // +X
+	Positions[5] = Vector3d(0, SY, 0);    // +Y
+	Positions[6] = Vector3d(0, 0, SZ);    // +Z
+	Positions[7] = Vector3d(SX, SY, 0);   // XY
+	Positions[8] = Vector3d(SX, 0, SZ);   // XZ
+	Positions[9] = Vector3d(0, SY, SZ);   // YZ
+
+	// Cut vertex positions; merge with coincident cube corners at max param
+	Positions[0] = Vector3d(SX - dx, SY, SZ);  // V0
+	Positions[1] = Vector3d(SX, SY - dy, SZ);  // V1
+	Positions[2] = Vector3d(SX, SY, SZ - dz);  // V2
+
+	// Merge indices: if param at max (15), cut vertex coincides with a cube corner
+	int VI[10];
+	bool Merged[3] = { ParamA == NumSteps - 1, ParamB == NumSteps - 1, ParamC == NumSteps - 1 };
+	int MergeTarget[3] = { 9, 8, 7 };  // V0->YZ, V1->XZ, V2->XY
+
+	// Transform and append all unique vertices
+	int NextVID = 0;
+	for (int i = 0; i < 10; ++i) VI[i] = -1;
+
+	// First add cube corner vertices (3-9)
+	for (int i = 3; i < 10; ++i) {
+		Vector3d P = Transforms.TransformPosition(Positions[i]);
+		VI[i] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors)
+			AppendToMesh.AppendColor(CellColor, true);
+	}
+	// Now add cut vertices (0-2), possibly merged
+	for (int i = 0; i < 3; ++i) {
+		if (Merged[i]) {
+			VI[i] = VI[MergeTarget[i]];
+		} else {
+			Vector3d P = Transforms.TransformPosition(Positions[i]);
+			VI[i] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+			if (!bUseFaceColors)
+				AppendToMesh.AppendColor(CellColor, true);
+		}
+	}
+
+	int GroupID = AppendToMesh.AllocateGroupID();
+
+	// Face polygon definitions (matching cut_cell.cpp winding)
+	struct FaceDef { int Indices[5]; int Count; int FaceColorIndex; };
+	FaceDef Faces[] = {
+		{ {0, 2, 1, -1, -1}, 3, 6 },          // Cut face
+		{ {4, 8, 1, 2, 7}, 5, 0 },             // +X face
+		{ {5, 7, 2, 0, 9}, 5, 2 },             // +Y face
+		{ {6, 9, 0, 1, 8}, 5, 4 },             // +Z face
+		{ {3, 5, 9, 6, -1}, 4, 1 },            // -X face
+		{ {3, 6, 8, 4, -1}, 4, 3 },            // -Y face
+		{ {3, 4, 7, 5, -1}, 4, 5 },            // -Z face
+	};
+	int NumFaces = 7;
+
+	for (int fi = 0; fi < NumFaces; ++fi)
+	{
+		int FaceVIDs[5];
+		for (int k = 0; k < Faces[fi].Count; ++k)
+			FaceVIDs[k] = VI[Faces[fi].Indices[k]];
+
+		// Compute face normal from first 3 unique verts of the polygon
+		// Use unit-space positions for normal calculation, then transform
+		Vector3d P0 = Positions[Faces[fi].Indices[0]];
+		Vector3d P1 = Positions[Faces[fi].Indices[1]];
+		Vector3d P2 = Positions[Faces[fi].Indices[2]];
+		Vector3d FaceN = GS::Normal(P0, P1, P2);
+		FaceN = Transforms.TransformNormal(FaceN);
+		Vector3f FaceNormal = Normalized((Vector3f)FaceN);
+
+		Vector4f UseFaceColor = CellColor;
+		if (bUseFaceColors) {
+			int FCI = Faces[fi].FaceColorIndex;
+			if (FCI >= 0 && FCI < CellFaceMaterials::MaxFaces)
+				UseFaceColor = Materials.FaceMaterials.Faces[FCI].AsVector4f(true, true);
+		}
+
+		FanTriangulateToMeshBuilder(AppendToMesh, GroupID, FaceVIDs, Faces[fi].Count,
+			FaceNormal, UseFaceColor, bUseFaceColors, CellMatIndex, bReverseOrientation);
+	}
+}
+
+
+void ModelGridMesher::AppendVariableCutEdge(
+	const AxisBox3d& LocalBounds, const CellMaterials& Materials,
+	IMeshBuilder& AppendToMesh, TransformListd& Transforms,
+	uint8_t ParamA, uint8_t ParamB)
+{
+	constexpr int NumSteps = 16;
+	// Vertex positions must be in [0, CellDimensions] space to match the transform system
+	Vector3d CellDims = LocalBounds.Max - LocalBounds.Min;
+	double SX = CellDims.X, SY = CellDims.Y, SZ = CellDims.Z;
+
+	double dt = ((double)ParamA + 1.0) * SY / NumSteps;  // top cut along Y
+	double df = ((double)ParamB + 1.0) * SZ / NumSteps;  // front cut along Z
+
+	bool bReverseOrientation = Transforms.bScaleInvertsOrientation;
+	bool bHaveCellMatIndex = (Materials.CellType == EGridCellMaterialType::SolidRGBIndex);
+	int CellMatIndex = (bHaveCellMatIndex) ? Materials.CellMaterial.GetIndex8() : 0;
+	bool bUseFaceColors = (Materials.CellType == EGridCellMaterialType::FaceColors);
+	Vector4f CellColor = (!bUseFaceColors) ? Materials.CellMaterial.AsVector4f(true, !bHaveCellMatIndex) : Vector4f::One();
+
+	// 6 cube corners (far edge removed)
+	Vector3d Positions[10];
+	Positions[0] = Vector3d(0, 0, 0);      // origin
+	Positions[1] = Vector3d(SX, 0, 0);     // +X
+	Positions[2] = Vector3d(0, SY, 0);     // +Y
+	Positions[3] = Vector3d(0, 0, SZ);     // +Z
+	Positions[4] = Vector3d(SX, SY, 0);    // XY
+	Positions[5] = Vector3d(SX, 0, SZ);    // XZ
+
+	// 4 cut vertices
+	Positions[6] = Vector3d(0, SY - dt, SZ);   // left top
+	Positions[7] = Vector3d(SX, SY - dt, SZ);  // right top
+	Positions[8] = Vector3d(0, SY, SZ - df);   // left front
+	Positions[9] = Vector3d(SX, SY, SZ - df);  // right front
+
+	// Merge indices
+	int VI[10];
+	bool MergedTop = (ParamA == NumSteps - 1);
+	bool MergedFront = (ParamB == NumSteps - 1);
+
+	// Transform and append cube corner vertices (0-5)
+	for (int i = 0; i < 6; ++i) {
+		Vector3d P = Transforms.TransformPosition(Positions[i]);
+		VI[i] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors)
+			AppendToMesh.AppendColor(CellColor, true);
+	}
+	// Cut vertices (6-9), possibly merged
+	// V6 (left top) merges with V3 (+Z) when top is at max
+	if (MergedTop) { VI[6] = VI[3]; } else {
+		Vector3d P = Transforms.TransformPosition(Positions[6]);
+		VI[6] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors) AppendToMesh.AppendColor(CellColor, true);
+	}
+	// V7 (right top) merges with V5 (XZ) when top is at max
+	if (MergedTop) { VI[7] = VI[5]; } else {
+		Vector3d P = Transforms.TransformPosition(Positions[7]);
+		VI[7] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors) AppendToMesh.AppendColor(CellColor, true);
+	}
+	// V8 (left front) merges with V2 (+Y) when front is at max
+	if (MergedFront) { VI[8] = VI[2]; } else {
+		Vector3d P = Transforms.TransformPosition(Positions[8]);
+		VI[8] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors) AppendToMesh.AppendColor(CellColor, true);
+	}
+	// V9 (right front) merges with V4 (XY) when front is at max
+	if (MergedFront) { VI[9] = VI[4]; } else {
+		Vector3d P = Transforms.TransformPosition(Positions[9]);
+		VI[9] = AppendToMesh.AppendVertex(LocalBounds.Min + P);
+		if (!bUseFaceColors) AppendToMesh.AppendColor(CellColor, true);
+	}
+
+	int GroupID = AppendToMesh.AllocateGroupID();
+
+	// Face polygon definitions (matching cut_cell.cpp winding)
+	struct FaceDef { int Indices[5]; int Count; int FaceColorIndex; };
+	FaceDef Faces[] = {
+		{ {6, 8, 9, 7, -1}, 4, 6 },            // Cut face
+		{ {2, 4, 9, 8, -1}, 4, 2 },             // +Y face
+		{ {3, 6, 7, 5, -1}, 4, 4 },             // +Z face
+		{ {0, 2, 8, 6, 3}, 5, 1 },              // -X face
+		{ {1, 5, 7, 9, 4}, 5, 0 },              // +X face
+		{ {0, 3, 5, 1, -1}, 4, 3 },             // -Y face
+		{ {0, 1, 4, 2, -1}, 4, 5 },             // -Z face
+	};
+	int NumFaces = 7;
+
+	for (int fi = 0; fi < NumFaces; ++fi)
+	{
+		int FaceVIDs[5];
+		for (int k = 0; k < Faces[fi].Count; ++k)
+			FaceVIDs[k] = VI[Faces[fi].Indices[k]];
+
+		Vector3d P0 = Positions[Faces[fi].Indices[0]];
+		Vector3d P1 = Positions[Faces[fi].Indices[1]];
+		Vector3d P2 = Positions[Faces[fi].Indices[2]];
+		Vector3d FaceN = GS::Normal(P0, P1, P2);
+		FaceN = Transforms.TransformNormal(FaceN);
+		Vector3f FaceNormal = Normalized((Vector3f)FaceN);
+
+		Vector4f UseFaceColor = CellColor;
+		if (bUseFaceColors) {
+			int FCI = Faces[fi].FaceColorIndex;
+			if (FCI >= 0 && FCI < CellFaceMaterials::MaxFaces)
+				UseFaceColor = Materials.FaceMaterials.Faces[FCI].AsVector4f(true, true);
+		}
+
+		FanTriangulateToMeshBuilder(AppendToMesh, GroupID, FaceVIDs, Faces[fi].Count,
+			FaceNormal, UseFaceColor, bUseFaceColors, CellMatIndex, bReverseOrientation);
+	}
+}
 
 
 

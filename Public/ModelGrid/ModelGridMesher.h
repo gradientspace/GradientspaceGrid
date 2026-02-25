@@ -74,6 +74,14 @@ public:
 	void AppendCutCorner(const AxisBox3d& LocalBounds, const CellMaterials& Materials, IMeshBuilder& AppendToMesh,
 		TransformListd& Transforms, AppendCache& Cache);
 
+	void AppendVariableCutCorner(const AxisBox3d& LocalBounds, const CellMaterials& Materials,
+		IMeshBuilder& AppendToMesh, TransformListd& Transforms,
+		uint8_t ParamA, uint8_t ParamB, uint8_t ParamC);
+
+	void AppendVariableCutEdge(const AxisBox3d& LocalBounds, const CellMaterials& Materials,
+		IMeshBuilder& AppendToMesh, TransformListd& Transforms,
+		uint8_t ParamA, uint8_t ParamB);
+
 	void AppendBoxFaces(const AxisBox3d& LocalBounds, const CellMaterials& Materials, int VisibleFacesMask, IMeshBuilder& AppendToMesh, AppendCache& Cache);
 
 

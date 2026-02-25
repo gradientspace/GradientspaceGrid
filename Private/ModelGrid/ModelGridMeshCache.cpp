@@ -1,5 +1,6 @@
 // Copyright Gradientspace Corp. All Rights Reserved.
 #include "ModelGrid/ModelGridMeshCache.h"
+#include "ModelGrid/ModelGridCell_Extended.h"
 #include "Core/ParallelFor.h"
 #include "Core/gs_debug.h"
 #include "GenericGrid/BoxIndexing.h"
@@ -323,6 +324,20 @@ void ModelGridMeshCache::BuildChunkMeshGeometry(const ModelGrid& TargetGrid, Vec
 			else if (CellInfo.CellType == EModelGridCellType::Cylinder_Parametric)
 			{
 				MeshBuilder.AppendCylinder(LocalBounds, UseMaterials, Mesh, TransformSeq, Cache);
+			}
+			else if (CellInfo.CellType == EModelGridCellType::VariableCutCorner_Parametric)
+			{
+				ModelGridCellData_StandardRST_Ext ExtParams;
+				InitializeSubCellFromGridCell(CellInfo, ExtParams);
+				MeshBuilder.AppendVariableCutCorner(LocalBounds, UseMaterials, Mesh, TransformSeq,
+					ExtParams.Params.ParamA, ExtParams.Params.ParamB, ExtParams.Params.ParamC);
+			}
+			else if (CellInfo.CellType == EModelGridCellType::VariableCutEdge_Parametric)
+			{
+				ModelGridCellData_StandardRST_Ext ExtParams;
+				InitializeSubCellFromGridCell(CellInfo, ExtParams);
+				MeshBuilder.AppendVariableCutEdge(LocalBounds, UseMaterials, Mesh, TransformSeq,
+					ExtParams.Params.ParamA, ExtParams.Params.ParamB);
 			}
 
 		}

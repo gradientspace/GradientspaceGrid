@@ -1,5 +1,6 @@
 // Copyright Gradientspace Corp. All Rights Reserved.
 #include "ModelGrid/ModelGridCell.h"
+#include "ModelGrid/ModelGridCell_Extended.h"
 #include "ModelGrid/ModelGridUtil.h"
 
 using namespace GS;
@@ -313,6 +314,8 @@ void GS::GetUnitCellTransform(const ModelGridCell& CellInfo, const Vector3d& Uni
 	case EModelGridCellType::Peak_Parametric:
 	case EModelGridCellType::Cylinder_Parametric:
 	case EModelGridCellType::CutCorner_Parametric:
+	case EModelGridCellType::VariableCutCorner_Parametric:
+	case EModelGridCellType::VariableCutEdge_Parametric:
 		{
 		ModelGridCellData_StandardRST SubCellParams;
 		InitializeSubCellFromGridCell(CellInfo, SubCellParams);
@@ -337,6 +340,8 @@ GS::ModelGridCell GS::MakeDefaultCellFromType(EModelGridCellType CellType)
 	case EModelGridCellType::Peak_Parametric:		return MakeDefaultCell<MGCell_Peak>();
 	case EModelGridCellType::Cylinder_Parametric:	return MakeDefaultCell<MGCell_Cylinder>();
 	case EModelGridCellType::CutCorner_Parametric:	return MakeDefaultCell<MGCell_CutCorner>();
+	case EModelGridCellType::VariableCutCorner_Parametric:	return MakeDefaultCell<MGCell_VariableCutCorner>();
+	case EModelGridCellType::VariableCutEdge_Parametric:	return MakeDefaultCell<MGCell_VariableCutEdge>();
 	}
 	return ModelGridCell::SolidCell();
 }

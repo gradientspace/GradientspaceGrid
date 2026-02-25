@@ -32,6 +32,8 @@ enum class EModelGridCellType
 	Peak_Parametric = 8,
 	Cylinder_Parametric = 9,
 	CutCorner_Parametric = 10,
+	VariableCutCorner_Parametric = 11,
+	VariableCutEdge_Parametric = 12,
 
 	// TODO:
 	// cone
